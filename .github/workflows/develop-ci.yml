@@ -1,105 +1,105 @@
-name: develop-ci
+# name: develop-ci
 
-# on:
-#   push:
-#     branches: [develop]
-#   pull_request:
+# # on:
+# #   push:
+# #     branches: [develop]
+# #   pull_request:
 
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+# jobs:
+#   lint:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v2
 
-      - name: Check formatting
-        run: |
-          pipx install black[colors]
-          pipx install isort[colors]
-          pipx install cairo-lang
-          black . --check --verbose --diff --color
-          isort . --check --verbose --diff --color
-          isort --ext cairo src/warp/cairo-src --check --verbose --diff --color
-          find src/warp/cairo-src/ -iname *.cairo -exec cairo-format -c {} +
+#       - name: Check formatting
+#         run: |
+#           pipx install black[colors]
+#           pipx install isort[colors]
+#           pipx install cairo-lang
+#           black . --check --verbose --diff --color
+#           isort . --check --verbose --diff --color
+#           isort --ext cairo src/warp/cairo-src --check --verbose --diff --color
+#           find src/warp/cairo-src/ -iname *.cairo -exec cairo-format -c {} +
 
-  typecheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+#   typecheck:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v2
 
-      - uses: actions/setup-python@v2.2.2
-        with:
-          python-version: 3.7 # Cairo was tested with this version
+#       - uses: actions/setup-python@v2.2.2
+#         with:
+#           python-version: 3.7 # Cairo was tested with this version
 
-      - name: Install poetry
-        run: curl -sSL https://install.python-poetry.org | python3 -
+#       - name: Install poetry
+#         run: curl -sSL https://install.python-poetry.org | python3 -
 
-      - name: Install Warp to pull in dependencies
-        run: make
+#       - name: Install Warp to pull in dependencies
+#         run: make
 
-      - name: Typecheck
-        run: |
-          poetry run pytype . \
-            --keep-going \
-            --exclude ./tests/semantic/solidity ./src/testnet ./dist \
-            --jobs auto
+#       - name: Typecheck
+#         run: |
+#           poetry run pytype . \
+#             --keep-going \
+#             --exclude ./tests/semantic/solidity ./src/testnet ./dist \
+#             --jobs auto
 
-  test-complete:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+#   test-complete:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v2
 
-      - uses: NethermindEth/warp-build-action@v2
+#       - uses: NethermindEth/warp-build-action@v2
 
-      - name: Setup a local devnet
-        run: |
-          pipx install starknet-devnet==0.1.9
-          starknet-devnet --host localhost --port 5000 &
+#       - name: Setup a local devnet
+#         run: |
+#           pipx install starknet-devnet==0.1.9
+#           starknet-devnet --host localhost --port 5000 &
 
-      - name: Setup BATS testing framework
-        uses: mig4/setup-bats@v1.2.0
+#       - name: Setup BATS testing framework
+#         uses: mig4/setup-bats@v1.2.0
 
-      - name: Test golden tests
-        run: |
-          export STARKNET_NETWORK=localhost:5000
-          poetry run make test_bats
+#       - name: Test golden tests
+#         run: |
+#           export STARKNET_NETWORK=localhost:5000
+#           poetry run make test_bats
 
-      - name: Test yul tests
-        run: poetry run make test_yul
+#       - name: Test yul tests
+#         run: poetry run make test_yul
 
-  benchmark:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+#   benchmark:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v2
 
-      - name: Setup source hash (pull_request)
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          git fetch origin "${{ github.head_ref }}":"${{ github.head_ref }}" --depth 1
-          source_hash="$(git rev-parse ${{ github.head_ref }})"
-          echo "source_hash=$source_hash" >> $GITHUB_ENV
+#       - name: Setup source hash (pull_request)
+#         if: ${{ github.event_name == 'pull_request' }}
+#         run: |
+#           git fetch origin "${{ github.head_ref }}":"${{ github.head_ref }}" --depth 1
+#           source_hash="$(git rev-parse ${{ github.head_ref }})"
+#           echo "source_hash=$source_hash" >> $GITHUB_ENV
 
-      - name: Setup source hash (push)
-        if: ${{ github.event_name == 'push' }}
-        run: |
-          echo "source_hash=${{ github.sha }}" >> $GITHUB_ENV
+#       - name: Setup source hash (push)
+#         if: ${{ github.event_name == 'push' }}
+#         run: |
+#           echo "source_hash=${{ github.sha }}" >> $GITHUB_ENV
 
-      - uses: NethermindEth/warp-build-action@v2
+#       - uses: NethermindEth/warp-build-action@v2
 
-      - name: Create benchmarks
-        run: |
-          mkdir -p benchmark/stats benchmark/tmp
-          poetry run python -m pytest tests/behaviour/ -v --tb=short --workers=auto
-          poetry run make benchmark
-          mv ./benchmark/stats/stats.md "./benchmark/stats/${{ env.source_hash }}.md"
+#       - name: Create benchmarks
+#         run: |
+#           mkdir -p benchmark/stats benchmark/tmp
+#           poetry run python -m pytest tests/behaviour/ -v --tb=short --workers=auto
+#           poetry run make benchmark
+#           mv ./benchmark/stats/stats.md "./benchmark/stats/${{ env.source_hash }}.md"
 
-      - name: Push benchmarks to another repository
-        uses: dmnemec/copy_file_to_another_repo_action@main
-        env:
-          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
-        with:
-          source_file: "benchmark/stats/${{ env.source_hash }}.md"
-          destination_repo: "NethermindEth/warp-benchmark"
-          destination_folder: "stats"
-          destination_branch: master
-          user_email: 41898282+github-actions[bot]@users.noreply.github.com
-          user_name: "Github Actions"
+#       - name: Push benchmarks to another repository
+#         uses: dmnemec/copy_file_to_another_repo_action@main
+#         env:
+#           API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+#         with:
+#           source_file: "benchmark/stats/${{ env.source_hash }}.md"
+#           destination_repo: "NethermindEth/warp-benchmark"
+#           destination_folder: "stats"
+#           destination_branch: master
+#           user_email: 41898282+github-actions[bot]@users.noreply.github.com
+#           user_name: "Github Actions"
