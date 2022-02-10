@@ -1,4 +1,4 @@
-name: Manual CodeBuild Trigger
+name: Testing Request Review
 
 permissions:
   pull-requests: write
