@@ -3,12 +3,14 @@ name: Manual CodeBuild Trigger
 permissions:
   pull-requests: write
 
-on: 
-  pull_request_target:
+on:
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   run_codebuild:
     runs-on: ubuntu-latest
+    if: ${{ github.event.review.state }} == 'approved'
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
